@@ -8,7 +8,7 @@ A web-based application for manually labeling and validating vehicle images, wit
 - **Smart Label Management**: Editable label field with auto-capitalization and filtering.
 - **Flexible Organization**: Move images between `unlabeled`, `valid`, `invalid`, and `skipped` folders.
 - **Preserved Directory Structure**: Keeps subdirectory organization (e.g., `Goa/Ambre_Colony`).
-- **Keyboard Shortcuts**: Use Ctrl + keys for fast navigation and actions.
+- **Keyboard Shortcuts**: Use Alt + keys for fast navigation and actions.
 - **Real-time Stats**: Live counters for each image category.
 
 ## Folder Structure
