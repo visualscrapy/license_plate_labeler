@@ -80,13 +80,13 @@ Go to: `http://localhost:5000`
 
 ## Keyboard Shortcuts
 
-| Shortcut  | Action                |
-|-----------|-----------------------|
-| Ctrl + P  | Previous Image        |
-| Ctrl + N  | Next Image            |
-| Ctrl + V  | Mark as Valid         |
-| Ctrl + I  | Mark as Invalid       |
-| Ctrl + S  | Skip Image            |
+| Shortcut | Action                |
+|----------|-----------------------|
+| Alt + P  | Previous Image        |
+| Alt + N  | Next Image            |
+| Alt + V  | Mark as Valid         |
+| Alt + I  | Mark as Invalid       |
+| Alt + S  | Skip Image            |
 
 ## API Endpoints Overview
 
