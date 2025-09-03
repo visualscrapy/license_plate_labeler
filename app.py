@@ -53,11 +53,10 @@ from flask import Flask, request, render_template, jsonify, send_from_directory,
 from io import BytesIO
 
 # Import your local utility function for license plate detection
-from utils import run_detection_on_image
+from utils import run_detection_on_image, count_images_in_directory
 
 app = Flask(__name__)
 
-# Dynamically find the project root directory
 current_dir = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.join(current_dir, 'datasets')
 
@@ -66,39 +65,6 @@ UNLABELED = os.path.join(BASE_DIR, 'unlabeled')
 VALID_VEHICLE = os.path.join(BASE_DIR, 'valid', 'vehicle_images_with_label')
 SKIPPED_VEHICLE = os.path.join(BASE_DIR, 'skipped', 'vehicle_images')
 INVALID_VEHICLE = os.path.join(BASE_DIR, 'invalid', 'vehicle_images')
-
-def count_images_in_directory(directory):
-    """Recursively counts the number of files in a directory."""
-    count = 0
-    if os.path.exists(directory):
-        for root, _, files in os.walk(directory):
-            for file in files:
-                if file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
-                    count += 1
-    return count
-
-def get_image_counts():
-    """Returns a dictionary with the counts of images in each folder."""
-    return {
-        'unlabeled': count_images_in_directory(UNLABELED),
-        'valid': count_images_in_directory(VALID_VEHICLE),
-        'invalid': count_images_in_directory(INVALID_VEHICLE),
-        'skipped': count_images_in_directory(SKIPPED_VEHICLE),
-    }
-
-def get_base_folder(path):
-    """
-    Determine which base folder a path belongs to, based on its prefix.
-    """
-    path = path.replace("\\", "/")
-    if path.startswith("valid/"):
-        return VALID_VEHICLE
-    elif path.startswith("invalid/"):
-        return INVALID_VEHICLE
-    elif path.startswith("skipped/"):
-        return SKIPPED_VEHICLE
-    else:
-        return UNLABELED
 
 
 def move_image(source_path, dest_dir, new_label=None):
@@ -109,25 +75,20 @@ def move_image(source_path, dest_dir, new_label=None):
     try:
         # Normalize path separators
         normalized_path = source_path.replace('\\', '/')
-
         # The source path is always relative to BASE_DIR
         src_full_path = os.path.join(BASE_DIR, normalized_path)
-
         # Check file exists
         if not os.path.exists(src_full_path):
             print(f"Source file not found: {src_full_path}")
             return None
-
         # Extract file extension only
         _, extension = os.path.splitext(src_full_path)
-
         # Construct new filename: replace entirely with cleaned label + extension
         if new_label:
             safe_label = new_label.replace('/', '_').replace('\\', '_')
             new_filename = f"{safe_label}{extension}"
         else:
             new_filename = os.path.basename(src_full_path)
-
         # Get the relative path from the original source directory
         # This preserves the subdirectory structure
         # Check which directory the image is currently in
@@ -150,30 +111,31 @@ def move_image(source_path, dest_dir, new_label=None):
                 relative_path = relative_path[len('vehicle_images/'):]
         else:
             relative_path = normalized_path
-
         # Prepare destination directory, preserving relative subfolders
         dest_subdir = os.path.join(dest_dir, os.path.dirname(relative_path))
         os.makedirs(dest_subdir, exist_ok=True)
-
         dst_full_path = os.path.join(dest_subdir, new_filename)
-
         # Remove destination file if exists to prevent errors
         if os.path.exists(dst_full_path):
             os.remove(dst_full_path)
-
         # Move the file
         shutil.move(src_full_path, dst_full_path)
         print(f"Moved {src_full_path} to {dst_full_path}")
-
         # Return relative path for UI and API usage (forward slashes)
         rel_path = os.path.relpath(dst_full_path, BASE_DIR)
         return rel_path.replace('\\', '/')
-
     except Exception as e:
         print(f"Error in move_image: {e}", file=sys.stderr)
         return None
 
-
+def get_image_counts():
+    """Returns a dictionary with the counts of images in each folder."""
+    return {
+        'unlabeled': count_images_in_directory(UNLABELED),
+        'valid': count_images_in_directory(VALID_VEHICLE),
+        'invalid': count_images_in_directory(INVALID_VEHICLE),
+        'skipped': count_images_in_directory(SKIPPED_VEHICLE),
+    }
 
 # --- API Endpoints ---
 @app.route('/')
@@ -184,7 +146,6 @@ def index():
 @app.route('/images/all')
 def get_all_images():
     image_list = []
-
     # For each folder, get relative paths with the folder name prefixed
     folders = {
         'unlabeled': UNLABELED,
@@ -192,7 +153,6 @@ def get_all_images():
         'invalid': INVALID_VEHICLE,
         'skipped': SKIPPED_VEHICLE,
     }
-
     for folder_name, folder_path in folders.items():
         for root, _, files in os.walk(folder_path):
             for file in files:
@@ -200,7 +160,6 @@ def get_all_images():
                     rel_path = os.path.relpath(os.path.join(root, file), BASE_DIR)
                     rel_path = os.path.normpath(rel_path)
                     image_list.append(rel_path.replace('\\', '/'))  # Normalize slashes for URLs
-
     return jsonify(image_list)
 
 @app.route('/images/counts')
@@ -211,10 +170,8 @@ def get_counts():
 @app.route('/preview_crop/<path:filename>')
 def preview_crop(filename):
     full_path = os.path.join(BASE_DIR, filename)
-
     if not os.path.exists(full_path):
         return jsonify({'error': 'Image not found at specified path'}), 404
-
     try:
         detection_result = run_detection_on_image(full_path)
         if detection_result and 'plate_crop' in detection_result:

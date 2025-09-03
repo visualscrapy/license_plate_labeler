@@ -32,3 +32,27 @@ def save_cropped_plate_by_label(src_img_path, dest_folder, label):
         crop_path = os.path.join(dest_folder, f"{label}.jpg")
         plate_crop.save(crop_path)
 
+def count_images_in_directory(directory):
+    """Recursively counts the number of files in a directory."""
+    count = 0
+    if os.path.exists(directory):
+        for root, _, files in os.walk(directory):
+            for file in files:
+                if file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                    count += 1
+    return count
+
+def get_base_folder(path):
+    """
+    Determine which base folder a path belongs to, based on its prefix.
+    """
+    path = path.replace("\\", "/")
+    if path.startswith("valid/"):
+        return VALID_VEHICLE
+    elif path.startswith("invalid/"):
+        return INVALID_VEHICLE
+    elif path.startswith("skipped/"):
+        return SKIPPED_VEHICLE
+    else:
+        return UNLABELED
+
