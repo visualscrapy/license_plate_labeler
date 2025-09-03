@@ -294,7 +294,7 @@ document.getElementById('next-btn').onclick = () => nextImage();
 
 // Keydown for quick actions
 document.addEventListener('keydown', (event) => {
-    if (event.ctrlKey) {
+    if (event.altKey) {
         if (event.key === 'p' || event.key === 'P') {
             previousImage();
             event.preventDefault(); // prevent browser print dialog
