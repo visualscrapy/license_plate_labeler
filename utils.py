@@ -3,11 +3,6 @@ from PIL import Image
 from ultralytics import YOLO
 
 DETECTION_MODEL_PATH = "models/license_plate_detect_v1_E160.pt"
-UNLABELED = 'unlabeled/vehicle_images'
-SKIPPED_VEHICLE = 'skipped/vehicle_images'
-VALID_VEHICLE = 'valid/vehicle_images_with_label'
-INVALID_VEHICLE = 'invalid/vehicle_images'
-
 
 
 def run_detection_on_image(image_path):
@@ -41,18 +36,4 @@ def count_images_in_directory(directory):
                 if file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
                     count += 1
     return count
-
-def get_base_folder(path):
-    """
-    Determine which base folder a path belongs to, based on its prefix.
-    """
-    path = path.replace("\\", "/")
-    if path.startswith("valid/"):
-        return VALID_VEHICLE
-    elif path.startswith("invalid/"):
-        return INVALID_VEHICLE
-    elif path.startswith("skipped/"):
-        return SKIPPED_VEHICLE
-    else:
-        return UNLABELED
 
