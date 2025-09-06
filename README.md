@@ -17,13 +17,17 @@ A web-based application for manually labeling and validating vehicle images, wit
 
 datasets/
 ├── unlabeled/               \# Input images
+│   └── state/
+│         └── city/
 ├── valid/                   \# Labeled/validated images
-│   └── vehicle_images/
+│   └── state/
+│         └── city/
 ├── invalid/                 \# Invalid images
-│   └── vehicle_images/
+│   └── state/
+│         └── city/
 └── skipped/                 \# Skipped images
-└── vehicle_images/
-
+│   └── state/
+│         └── city/
 ```
 
 ## Installation & Setup
