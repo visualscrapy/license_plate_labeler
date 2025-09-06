@@ -241,9 +241,4 @@ def serve_unlabeled(filename):
 
 if __name__ == '__main__':
     setup_directories()
-    for directory in [UNLABELED, VALID_VEHICLE, SKIPPED_VEHICLE, INVALID_VEHICLE]:
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-            print(f"Created directory: {directory}")
-
     app.run(debug=True, port=8000, use_reloader=True)
