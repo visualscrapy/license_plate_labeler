@@ -82,18 +82,19 @@
                         </div>
                     </div>
                     <div class="w-full">
-                        <input type="text" id="label-input" placeholder="Enter Label"
-                               class="w-full p-3 text-lg rounded-lg outline-none bg-white border border-gray-300 shadow-sm mb-4">
-                        <button id="update-label-btn" class="p-3 text-lg font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none transition-colors duration-200 w-full">Update Label</button>
+                        <input type="text" id="label-input" placeholder="Enter Label" class="w-full p-3 text-lg rounded-lg outline-none bg-white border border-gray-300 shadow-sm mb-4">
+                        <div class="flex gap-4">
+                            <button id="update-label-btn" class="p-3 text-lg font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none transition-colors duration-200 flex-1">Update Label</button>
+                            <button id="valid-btn" class="p-3 rounded-lg text-white font-medium bg-green-500 hover:bg-green-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105 flex-1">Valid (V)</button>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
         <!-- Navigation and Validation Buttons -->
         <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 w-full max-w-3xl mx-auto mt-6">
             <button id="previous-btn" class="p-3 rounded-lg text-white font-medium bg-blue-500 hover:bg-blue-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Previous (P)</button>
-            <button id="valid-btn" class="p-3 rounded-lg text-white font-medium bg-green-500 hover:bg-green-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Valid (V)</button>
+
             <button id="invalid-btn" class="p-3 rounded-lg text-white font-medium bg-red-500 hover:bg-red-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Invalid (I)</button>
             <button id="skip-btn" class="p-3 rounded-lg text-white font-medium bg-gray-500 hover:bg-gray-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Skip (S)</button>
             <button id="next-btn" class="p-3 rounded-lg text-white font-medium bg-blue-500 hover:bg-blue-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Next (N)</button>
