@@ -4,77 +4,99 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vehicle Labeler</title>
-<!--    <script src="{{ url_for('static', filename='js/labeler.js') }}"></script>-->
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
         }
         .message-box {
             display: none;
         }
+        .image-container {
+            width: 100%;
+            height: 55vh; /* Sets a fixed height relative to the viewport height */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            border-radius: 0.75rem; /* rounded-lg */
+        }
+        .image-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain; /* Ensures the image fits within the container without distortion */
+            border: 2px solid #e5e7eb; /* border-2 border-gray-200 */
+        }
     </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+<body class="flex items-center justify-center min-h-screen p-4">
 
     <div id="loading-message" class="text-center text-gray-600 font-semibold text-lg">
         Fetching image list...
     </div>
 
-    <div id="content" class="hidden w-full max-w-5xl bg-white rounded-xl shadow-lg p-6 md:p-10">
-        <h1 class="text-3xl font-bold text-gray-800 text-center mb-6">Vehicle Image Labeler</h1>
+    <div id="content" class="hidden w-full max-w-5xl h-full flex flex-col justify-between bg-white rounded-xl shadow-lg p-6 md:p-10">
+        <div class="flex-grow flex flex-col">
+            <h1 class="text-3xl font-bold text-gray-800 text-center mb-6">Vehicle Image Labeler</h1>
 
-        <!-- Counts Display -->
-        <div class="flex flex-wrap justify-center md:justify-around text-center gap-4 mb-8 text-sm md:text-base">
-            <div class="p-3 bg-blue-100 text-blue-800 rounded-lg shadow-inner w-full md:w-auto">
-                <p class="font-semibold">Unlabeled Images</p>
-                <p id="unlabeled-count" class="font-bold text-2xl mt-1">0</p>
+            <!-- Counts Display -->
+            <div class="flex flex-wrap justify-center md:justify-around text-center gap-4 mb-6 text-sm md:text-base">
+                <div class="p-3 bg-blue-100 text-blue-800 rounded-lg shadow-inner w-full md:w-auto">
+                    <p class="font-semibold">Unlabeled Images</p>
+                    <p id="unlabeled-count" class="font-bold text-2xl mt-1">0</p>
+                </div>
+                <div class="p-3 bg-green-100 text-green-800 rounded-lg shadow-inner w-full md:w-auto">
+                    <p class="font-semibold">Valid Images</p>
+                    <p id="valid-count" class="font-bold text-2xl mt-1">0</p>
+                </div>
+                <div class="p-3 bg-red-100 text-red-800 rounded-lg shadow-inner w-full md:w-auto">
+                    <p class="font-semibold">Invalid Images</p>
+                    <p id="invalid-count" class="font-bold text-2xl mt-1">0</p>
+                </div>
+                <div class="p-3 bg-yellow-100 text-yellow-800 rounded-lg shadow-inner w-full md:w-auto">
+                    <p class="font-semibold">Skipped Images</p>
+                    <p id="skipped-count" class="font-bold text-2xl mt-1">0</p>
+                </div>
             </div>
-            <div class="p-3 bg-green-100 text-green-800 rounded-lg shadow-inner w-full md:w-auto">
-                <p class="font-semibold">Valid Images</p>
-                <p id="valid-count" class="font-bold text-2xl mt-1">0</p>
+
+            <div id="progress-text" class="text-center text-gray-600 mb-6">
+                <span id="current-index-display">0</span> of <span id="total-unlabeled-display">0</span> images processed.
             </div>
-            <div class="p-3 bg-red-100 text-red-800 rounded-lg shadow-inner w-full md:w-auto">
-                <p class="font-semibold">Invalid Images</p>
-                <p id="invalid-count" class="font-bold text-2xl mt-1">0</p>
-            </div>
-            <div class="p-3 bg-yellow-100 text-yellow-800 rounded-lg shadow-inner w-full md:w-auto">
-                <p class="font-semibold">Skipped Images</p>
-                <p id="skipped-count" class="font-bold text-2xl mt-1">0</p>
+
+            <!-- Main Image and Number Plate Section -->
+            <div class="flex flex-col md:flex-row items-center md:items-start justify-center md:gap-8 flex-grow">
+                <!-- Left Panel: Vehicle Image -->
+                <div class="flex-1 max-w-full mb-4 md:mb-0">
+                    <div class="image-container">
+                        <img id="vehicle-img" src="" alt="Vehicle Image">
+                    </div>
+                </div>
+                <!-- Right Panel: Number Plate & Label Controls -->
+                <div class="flex-shrink-0 w-full max-w-sm p-4 rounded-lg bg-gray-50 shadow-inner flex flex-col items-center justify-between">
+                    <div>
+                        <h3 class="font-semibold text-center text-gray-700 mb-4">Detected Plate</h3>
+                        <div class="w-full flex justify-center mb-4">
+                            <img id="numberplate-img" src="" alt="License Plate Crop" class="w-full h-auto rounded-md shadow-sm border-2 border-gray-300">
+                        </div>
+                    </div>
+                    <div class="w-full">
+                        <input type="text" id="label-input" placeholder="Enter Label"
+                               class="w-full p-3 text-lg rounded-lg outline-none bg-white border border-gray-300 shadow-sm mb-4">
+                        <button id="update-label-btn" class="p-3 text-lg font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none transition-colors duration-200 w-full">Update Label</button>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div id="progress-text" class="text-center text-gray-600 mb-6">
-            <span id="current-index-display">0</span> of <span id="total-unlabeled-display">0</span> images processed.
-        </div>
-
-        <!-- Main Image and Number Plate Section -->
-        <div class="flex flex-col md:flex-row items-center md:items-start justify-center md:gap-8 mb-6">
-            <div class="flex-1 max-w-full mb-4 md:mb-0">
-                <img id="vehicle-img" src="" alt="Vehicle Image" class="w-full h-auto rounded-lg shadow-md border-2 border-gray-200">
-            </div>
-            <div class="flex-shrink-0 w-64 md:w-56 p-4 rounded-lg bg-gray-50 shadow-inner">
-                <h3 class="font-semibold text-center text-gray-700 mb-2">Detected Plate</h3>
-                <img id="numberplate-img" src="" alt="License Plate Crop" class="w-full h-auto rounded-md shadow-sm border-2 border-gray-300">
-            </div>
-        </div>
-
-        <!-- Input and Control Buttons -->
-        <div class="flex flex-col items-center gap-4">
-            <div class="w-full max-w-sm flex items-center bg-white rounded-lg border border-gray-300 shadow-sm">
-                <input type="text" id="label-input" placeholder="Enter Label"
-                       class="flex-grow p-3 text-lg rounded-lg outline-none bg-transparent">
-                <button id="update-label-btn" class="p-3 text-lg font-medium text-white bg-indigo-600 rounded-r-lg hover:bg-indigo-700 focus:outline-none transition-colors duration-200">Update Label</button>
-            </div>
-
-            <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 w-full max-w-3xl">
-                <button id="previous-btn" class="p-3 rounded-lg text-white font-medium bg-blue-500 hover:bg-blue-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Previous (P)</button>
-                <button id="valid-btn" class="p-3 rounded-lg text-white font-medium bg-green-500 hover:bg-green-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Valid (V)</button>
-                <button id="invalid-btn" class="p-3 rounded-lg text-white font-medium bg-red-500 hover:bg-red-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Invalid (I)</button>
-                <button id="skip-btn" class="p-3 rounded-lg text-white font-medium bg-gray-500 hover:bg-gray-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Skip (S)</button>
-                <button id="next-btn" class="p-3 rounded-lg text-white font-medium bg-blue-500 hover:bg-blue-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Next (N)</button>
-            </div>
+        <!-- Navigation and Validation Buttons -->
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 w-full max-w-3xl mx-auto mt-6">
+            <button id="previous-btn" class="p-3 rounded-lg text-white font-medium bg-blue-500 hover:bg-blue-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Previous (P)</button>
+            <button id="valid-btn" class="p-3 rounded-lg text-white font-medium bg-green-500 hover:bg-green-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Valid (V)</button>
+            <button id="invalid-btn" class="p-3 rounded-lg text-white font-medium bg-red-500 hover:bg-red-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Invalid (I)</button>
+            <button id="skip-btn" class="p-3 rounded-lg text-white font-medium bg-gray-500 hover:bg-gray-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Skip (S)</button>
+            <button id="next-btn" class="p-3 rounded-lg text-white font-medium bg-blue-500 hover:bg-blue-600 focus:outline-none transition-colors duration-200 shadow-lg transform hover:scale-105">Next (N)</button>
         </div>
     </div>
 
@@ -145,19 +167,15 @@ async function loadImage(index) {
     loadingDiv.textContent = 'Loading images...';
 
     // Load the vehicle image
-<!--        vehicleImg.src = `/unlabeled/${imagePath}`;-->
     vehicleImg.src = `/images/serve/${imagePath.replace(/\\/g, '/')}`;
 
 
     // Load the cropped numberplate image
-<!--        numberplateImg.src = `/preview_crop/${imagePath}`;-->
     numberplateImg.src = `/preview_crop/${imagePath.replace(/\\/g, '/')}`;
 
     // Set default label
-<!--        const filename = imagePath.split('/').pop();-->
     const filename = imagePath.replace(/\\/g, '/').split('/').pop();
     const baseName = filename.split('.')[0];
-<!--        labelInput.value = baseName.toUpperCase().replace(/[^A-Z0-9]/g, '');-->
     labelInput.value = baseName;
 
     // Add an event listener to the vehicle image to ensure content is displayed after load
@@ -194,62 +212,61 @@ function previousImage() {
 
 // --- Action Handlers ---
 async function moveImage(action) {
-let label = labelInput.value;
-const currentImage = allImages[currentIndex]; // current filename/path
+    let label = labelInput.value;
+    const currentImage = allImages[currentIndex]; // current filename/path
 
-const payload = {
-    img: currentImage,
-    label: label,
-};
+    const payload = {
+        img: currentImage,
+        label: label,
+    };
 
-try {
-    const response = await fetch(`/images/${action}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-    });
-    const data = await response.json();
+    try {
+        const response = await fetch(`/images/${action}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await response.json();
 
-    if (data.success) {
-        // Always update the image path with the new path returned from the server
-        if (data.new_path) {
-            allImages[currentIndex] = data.new_path.replace(/\\/g, '/');
-        }
+        if (data.success) {
+            // Always update the image path with the new path returned from the server
+            if (data.new_path) {
+                allImages[currentIndex] = data.new_path.replace(/\\/g, '/');
+            }
 
-        // Update counts
-        unlabeledCountDisplay.textContent = data.counts.unlabeled;
-        validCountDisplay.textContent = data.counts.valid;
-        invalidCountDisplay.textContent = data.counts.invalid;
-        skippedCountDisplay.textContent = data.counts.skipped;
+            // Update counts
+            unlabeledCountDisplay.textContent = data.counts.unlabeled;
+            validCountDisplay.textContent = data.counts.valid;
+            invalidCountDisplay.textContent = data.counts.invalid;
+            skippedCountDisplay.textContent = data.counts.skipped;
 
-        // For label/valid actions, move to next image
-        if (action === 'label' || action === 'valid') {
-            if (currentIndex < allImages.length - 1) {
-                currentIndex++;
-                loadImage(currentIndex);
+            // For label/valid actions, move to next image
+            if (action === 'label' || action === 'valid') {
+                if (currentIndex < allImages.length - 1) {
+                    currentIndex++;
+                    loadImage(currentIndex);
+                } else {
+                    showCompletionMessage();
+                }
             } else {
-                showCompletionMessage();
+                // For invalid/skip, remove from list
+                allImages.splice(currentIndex, 1);
+                if (currentIndex >= allImages.length) {
+                    currentIndex = Math.max(0, allImages.length - 1);
+                }
+                if (allImages.length === 0) {
+                    showCompletionMessage();
+                    return;
+                }
+                loadImage(currentIndex);
             }
         } else {
-            // For invalid/skip, remove from list
-            allImages.splice(currentIndex, 1);
-            if (currentIndex >= allImages.length) {
-                currentIndex = Math.max(0, allImages.length - 1);
-            }
-            if (allImages.length === 0) {
-                showCompletionMessage();
-                return;
-            }
-            loadImage(currentIndex);
+            console.error('Failed to move image:', data.error);
         }
-    } else {
-        console.error('Failed to move image:', data.error);
+    } catch (error) {
+        console.error('Network or server error:', error);
     }
-} catch (error) {
-    console.error('Network or server error:', error);
 }
-}
-
 
 
 // --- Initial Load Function ---
@@ -322,7 +339,6 @@ labelInput.addEventListener('input', (event) => {
 window.onload = loadInitialState;
 
 </script>
-
 
 </body>
 </html>
