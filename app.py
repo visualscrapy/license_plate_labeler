@@ -49,28 +49,28 @@ The application's core functionality is a Flask web server that handles:
 import sys
 import os
 import shutil
-from flask import Flask, request, render_template, jsonify, send_from_directory, send_file
 from io import BytesIO
+from flask import Flask, request, render_template, jsonify, send_from_directory, send_file
 
 # Import your local utility function for license plate detection
 from utils import run_detection_on_image, count_images_in_directory
 
 app = Flask(__name__)
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-BASE_DIR = os.path.join(current_dir, 'datasets')
+# Base directory setup
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'datasets')
 
-# Define the paths for all image folders
-UNLABELED = os.path.join(BASE_DIR, 'unlabeled')
-VALID_VEHICLE = os.path.join(BASE_DIR, 'valid', 'vehicle_images_with_label')
-SKIPPED_VEHICLE = os.path.join(BASE_DIR, 'skipped', 'vehicle_images')
-INVALID_VEHICLE = os.path.join(BASE_DIR, 'invalid', 'vehicle_images')
+# Define image category directories under datasets
+UNLABELED_BASE = os.path.join(BASE_DIR, 'unlabeled')
+VALID_BASE = os.path.join(BASE_DIR, 'valid')
+SKIPPED_BASE = os.path.join(BASE_DIR, 'skipped')
+INVALID_BASE = os.path.join(BASE_DIR, 'invalid')
 
 
 def move_image(source_path, dest_dir, new_label=None):
     """
     Moves and optionally renames an image file from its current location to a target directory.
-    Preserves subdirectory structure and replaces the filename with the new label (if provided).
+    Preserves subdirectory structure relative to category folder.
     """
     try:
         # Normalize path separators
@@ -79,40 +79,21 @@ def move_image(source_path, dest_dir, new_label=None):
         src_full_path = os.path.join(BASE_DIR, normalized_path)
         # Check file exists
         if not os.path.exists(src_full_path):
-            print(f"Source file not found: {src_full_path}")
+            print(f"Source file not found: {src_full_path}", file=sys.stderr)
             return None
-        # Extract file extension only
-        _, extension = os.path.splitext(src_full_path)
+
+        _, ext = os.path.splitext(src_full_path)
         # Construct new filename: replace entirely with cleaned label + extension
         if new_label:
             safe_label = new_label.replace('/', '_').replace('\\', '_')
-            new_filename = f"{safe_label}{extension}"
+            new_filename = f"{safe_label}{ext}"
         else:
             new_filename = os.path.basename(src_full_path)
-        # Get the relative path from the original source directory
-        # This preserves the subdirectory structure
-        # Check which directory the image is currently in
-        if normalized_path.startswith('unlabeled/'):
-            relative_path = normalized_path[len('unlabeled/'):]
-        elif normalized_path.startswith('valid/'):
-            relative_path = normalized_path[len('valid/'):]
-            # Remove the 'vehicle_images_with_label/' part if it exists
-            if relative_path.startswith('vehicle_images_with_label/'):
-                relative_path = relative_path[len('vehicle_images_with_label/'):]
-        elif normalized_path.startswith('invalid/'):
-            relative_path = normalized_path[len('invalid/'):]
-            # Remove the 'vehicle_images/' part if it exists
-            if relative_path.startswith('vehicle_images/'):
-                relative_path = relative_path[len('vehicle_images/'):]
-        elif normalized_path.startswith('skipped/'):
-            relative_path = normalized_path[len('skipped/'):]
-            # Remove the 'vehicle_images/' part if it exists
-            if relative_path.startswith('vehicle_images/'):
-                relative_path = relative_path[len('vehicle_images/'):]
-        else:
-            relative_path = normalized_path
-        # Prepare destination directory, preserving relative subfolders
-        dest_subdir = os.path.join(dest_dir, os.path.dirname(relative_path))
+
+        # Remove the category folder name from the relative path to preserve subfolder structure
+        parts = normalized_path.split('/')
+        relative_dir = os.path.join(*parts[1:-1]) if len(parts) > 2 else ''
+        dest_subdir = os.path.join(dest_dir, relative_dir)
         os.makedirs(dest_subdir, exist_ok=True)
         dst_full_path = os.path.join(dest_subdir, new_filename)
         # Remove destination file if exists to prevent errors
@@ -122,127 +103,157 @@ def move_image(source_path, dest_dir, new_label=None):
         shutil.move(src_full_path, dst_full_path)
         print(f"Moved {src_full_path} to {dst_full_path}")
         # Return relative path for UI and API usage (forward slashes)
-        rel_path = os.path.relpath(dst_full_path, BASE_DIR)
-        return rel_path.replace('\\', '/')
+        rel_path = os.path.relpath(dst_full_path, BASE_DIR).replace('\\', '/')
+        return rel_path
+
     except Exception as e:
         print(f"Error in move_image: {e}", file=sys.stderr)
         return None
 
 def get_image_counts():
-    """Returns a dictionary with the counts of images in each folder."""
+    """Return counts of images in each managed directory."""
     return {
-        'unlabeled': count_images_in_directory(UNLABELED),
-        'valid': count_images_in_directory(VALID_VEHICLE),
-        'invalid': count_images_in_directory(INVALID_VEHICLE),
-        'skipped': count_images_in_directory(SKIPPED_VEHICLE),
+        'unlabeled': count_images_in_directory(UNLABELED_BASE),
+        'valid': count_images_in_directory(VALID_BASE),
+        'invalid': count_images_in_directory(INVALID_BASE),
+        'skipped': count_images_in_directory(SKIPPED_BASE),
     }
 
-# --- API Endpoints ---
-@app.route('/')
-def index():
-    """Serves the main labeling UI."""
-    return render_template('labeler.html')
 
-@app.route('/images/all')
 def get_all_images():
-    image_list = []
-    # For each folder, get relative paths with the folder name prefixed
+    """Return sorted list of all image paths relative to datasets folder."""
+    all_images = []
     folders = {
-        'unlabeled': UNLABELED,
-        'valid': VALID_VEHICLE,
-        'invalid': INVALID_VEHICLE,
-        'skipped': SKIPPED_VEHICLE,
+        'unlabeled': UNLABELED_BASE,
+        'valid': VALID_BASE,
+        'invalid': INVALID_BASE,
+        'skipped': SKIPPED_BASE,
     }
     for folder_name, folder_path in folders.items():
-        for root, _, files in os.walk(folder_path):
-            for file in files:
-                if file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
-                    rel_path = os.path.relpath(os.path.join(root, file), BASE_DIR)
-                    rel_path = os.path.normpath(rel_path)
-                    image_list.append(rel_path.replace('\\', '/'))  # Normalize slashes for URLs
-    return jsonify(image_list)
+        if os.path.exists(folder_path):
+            for root, _, files in os.walk(folder_path):
+                for file in files:
+                    if file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                        rel_path = os.path.relpath(os.path.join(root, file), BASE_DIR)
+                        all_images.append(rel_path.replace('\\', '/'))
+    return sorted(all_images)
+
+
+@app.route('/')
+def index():
+    """Serves main labeling interface."""
+    return render_template('labeler.html')
+
+
+@app.route('/images/all')
+def images_all():
+    """Returns JSON array of all images for frontend."""
+    return jsonify(get_all_images())
+
 
 @app.route('/images/counts')
-def get_counts():
-    """Returns the counts of images in each directory."""
+def images_counts():
+    """Returns JSON counts for images in all categories."""
     return jsonify(get_image_counts())
+
+
+@app.route('/images/image-details/<path:filename>')
+def image_details(filename):
+    """Returns details for a given image file."""
+    full_path = os.path.join(BASE_DIR, filename)
+    if not os.path.exists(full_path):
+        return jsonify({}), 404
+
+    base_filename = os.path.basename(filename)
+    detected_label = os.path.splitext(base_filename)[0]
+
+    return jsonify({
+        'img': filename,
+        'label': detected_label,
+        'cropped_img_url': f'/preview_crop/{filename}'
+    })
+
 
 @app.route('/preview_crop/<path:filename>')
 def preview_crop(filename):
+    """Generates and serves cropped license plate image on the fly."""
     full_path = os.path.join(BASE_DIR, filename)
     if not os.path.exists(full_path):
-        return jsonify({'error': 'Image not found at specified path'}), 404
+        return jsonify({'error': 'Image not found'}), 404
+
     try:
-        detection_result = run_detection_on_image(full_path)
-        if detection_result and 'plate_crop' in detection_result:
-            img_io = BytesIO()
-            detection_result['plate_crop'].save(img_io, 'JPEG')
-            img_io.seek(0)
-            return send_file(img_io, mimetype='image/jpeg')
+        result = run_detection_on_image(full_path)
+        if result and 'plate_crop' in result:
+            buf = BytesIO()
+            result['plate_crop'].save(buf, format='JPEG')
+            buf.seek(0)
+            return send_file(buf, mimetype='image/jpeg')
         else:
             return jsonify({'error': 'No license plate detected'}), 404
     except Exception as e:
-        print(f"Error processing image for crop: {e}", file=sys.stderr)
-        return jsonify({'error': f'An error occurred: {e}'}), 500
+        print(f"Error in preview_crop: {e}", file=sys.stderr)
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/images/label', methods=['POST'])
-def update_label():
-    """Handles the 'update label' action."""
-    relative_img_path = request.json['img']
-    label = request.json['label']
-    new_path = move_image(relative_img_path, VALID_VEHICLE, label)
-    counts = get_image_counts()
-    return jsonify({'success': True, 'new_path': new_path, 'counts': counts})
+def label_image():
+    """Move image to valid with new label."""
+    data = request.json
+    new_path = move_image(data['img'], VALID_BASE, data.get('label'))
+    return jsonify({'success': new_path is not None, 'new_path': new_path, 'counts': get_image_counts()})
+
 
 @app.route('/images/valid', methods=['POST'])
 def valid_image():
-    """Handles the 'valid' action."""
-    relative_img_path = request.json['img']
-    label = request.json.get('label') or os.path.splitext(os.path.basename(relative_img_path))[0]
-    new_path = move_image(relative_img_path, VALID_VEHICLE, label)
-    counts = get_image_counts()
-    return jsonify({'success': True, 'new_path': new_path, 'counts': counts})
+    """Move image to valid keeping current label or original filename."""
+    data = request.json
+    label = data.get('label') or os.path.splitext(os.path.basename(data['img']))[0]
+    new_path = move_image(data['img'], VALID_BASE, label)
+    return jsonify({'success': new_path is not None, 'new_path': new_path, 'counts': get_image_counts()})
+
 
 @app.route('/images/invalid', methods=['POST'])
 def invalid_image():
-    """Handles the 'invalid' action."""
-    relative_img_path = request.json['img']
-    new_path = move_image(relative_img_path, INVALID_VEHICLE)
-    counts = get_image_counts()
-    return jsonify({'success': True, 'new_path': new_path, 'counts': counts})
+    """Move image to invalid."""
+    data = request.json
+    new_path = move_image(data['img'], INVALID_BASE)
+    return jsonify({'success': new_path is not None, 'new_path': new_path, 'counts': get_image_counts()})
+
 
 @app.route('/images/skip', methods=['POST'])
 def skip_image():
-    """Handles the 'skip' action."""
-    relative_img_path = request.json['img']
-    new_path = move_image(relative_img_path, SKIPPED_VEHICLE)
-    counts = get_image_counts()
-    return jsonify({'success': True, 'new_path': new_path, 'counts': counts})
-
-@app.route('/images/serve/<path:filepath>')
-def serve_image(filepath):
-    # filepath can be like 'valid/vehicle_images_with_label/Goa/Ambre_Colony/12345.jpg'
-    full_path = os.path.join(BASE_DIR, filepath)
-    if not os.path.exists(full_path):
-        print(f"File not found: {full_path}")
-        return jsonify({'error': 'Image not found'}), 404
-    # Serve file from its real folder
-    # Serve relative to BASE_DIR
-    folder = os.path.dirname(full_path)
-    filename = os.path.basename(full_path)
-    return send_from_directory(folder, filename)
+    """Move image to skipped."""
+    data = request.json
+    new_path = move_image(data['img'], SKIPPED_BASE)
+    return jsonify({'success': new_path is not None, 'new_path': new_path, 'counts': get_image_counts()})
 
 
-# --- Image Serving Routes ---
 @app.route('/unlabeled/<path:filename>')
 def serve_unlabeled(filename):
-    """Serves an unlabeled image from the directory."""
-    return send_from_directory(UNLABELED, filename)
+    """Serve unlabeled image including subdirectories."""
+    return send_from_directory(UNLABELED_BASE, filename)
+
+
+@app.route('/valid/<path:filename>')
+def serve_valid(filename):
+    """Serve valid images."""
+    return send_from_directory(VALID_BASE, filename)
+
+
+@app.route('/invalid/<path:filename>')
+def serve_invalid(filename):
+    """Serve invalid images."""
+    return send_from_directory(INVALID_BASE, filename)
+
+
+@app.route('/skipped/<path:filename>')
+def serve_skipped(filename):
+    """Serve skipped images."""
+    return send_from_directory(SKIPPED_BASE, filename)
+
 
 if __name__ == '__main__':
-    for directory in [UNLABELED, VALID_VEHICLE, SKIPPED_VEHICLE, INVALID_VEHICLE]:
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-            print(f"Created directory: {directory}")
-
-    app.run(debug=True)
+    # Ensure all folders exist on start
+    for folder in [UNLABELED_BASE, VALID_BASE, SKIPPED_BASE, INVALID_BASE]:
+        os.makedirs(folder, exist_ok=True)
+    app.run(debug=True, port=8000)
