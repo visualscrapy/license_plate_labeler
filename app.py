@@ -48,6 +48,7 @@ The application's core functionality is a Flask web server that handles:
 
 import sys
 import os
+import re
 import shutil
 from flask import Flask, request, render_template, jsonify, send_from_directory, send_file
 from io import BytesIO
@@ -59,73 +60,64 @@ app = Flask(__name__)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.join(current_dir, 'datasets')
-
-# Define the paths for all image folders
 UNLABELED = os.path.join(BASE_DIR, 'unlabeled')
-VALID_VEHICLE = os.path.join(BASE_DIR, 'valid', 'vehicle_images_with_label')
-SKIPPED_VEHICLE = os.path.join(BASE_DIR, 'skipped', 'vehicle_images')
-INVALID_VEHICLE = os.path.join(BASE_DIR, 'invalid', 'vehicle_images')
+VALID_VEHICLE = os.path.join(BASE_DIR, 'valid')
+SKIPPED_VEHICLE = os.path.join(BASE_DIR, 'skipped')
+INVALID_VEHICLE = os.path.join(BASE_DIR, 'invalid')
+
+# --- Directory Setup ---
+def setup_directories():
+    """Ensures that all necessary directories exist."""
+    os.makedirs(UNLABELED, exist_ok=True)
+    os.makedirs(VALID_VEHICLE, exist_ok=True)
+    os.makedirs(INVALID_VEHICLE, exist_ok=True)
+    os.makedirs(SKIPPED_VEHICLE, exist_ok=True)
 
 
 def move_image(source_path, dest_dir, new_label=None):
     """
-    Moves and optionally renames an image file from its current location to a target directory.
-    Preserves subdirectory structure and replaces the filename with the new label (if provided).
+    Moves an image from its source path to a destination directory,
+    preserving the subdirectory structure and renaming the file with the new label (if provided).
     """
     try:
-        # Normalize path separators
-        normalized_path = source_path.replace('\\', '/')
-        # The source path is always relative to BASE_DIR
-        src_full_path = os.path.join(BASE_DIR, normalized_path)
+        # The source_path from the front end is already relative to the 'unlabeled' folder
+        src_full_path = os.path.join(BASE_DIR, source_path)
         # Check file exists
         if not os.path.exists(src_full_path):
             print(f"Source file not found: {src_full_path}")
             return None
-        # Extract file extension only
-        _, extension = os.path.splitext(src_full_path)
-        # Construct new filename: replace entirely with cleaned label + extension
-        if new_label:
-            safe_label = new_label.replace('/', '_').replace('\\', '_')
-            new_filename = f"{safe_label}{extension}"
+
+        # Determine the relative subdirectory, removing the 'unlabeled' part from the path.
+        if source_path.startswith('unlabeled/'):
+            relative_subdir_path = os.path.dirname(source_path[len('unlabeled/'):])
         else:
-            new_filename = os.path.basename(src_full_path)
-        # Get the relative path from the original source directory
-        # This preserves the subdirectory structure
-        # Check which directory the image is currently in
-        if normalized_path.startswith('unlabeled/'):
-            relative_path = normalized_path[len('unlabeled/'):]
-        elif normalized_path.startswith('valid/'):
-            relative_path = normalized_path[len('valid/'):]
-            # Remove the 'vehicle_images_with_label/' part if it exists
-            if relative_path.startswith('vehicle_images_with_label/'):
-                relative_path = relative_path[len('vehicle_images_with_label/'):]
-        elif normalized_path.startswith('invalid/'):
-            relative_path = normalized_path[len('invalid/'):]
-            # Remove the 'vehicle_images/' part if it exists
-            if relative_path.startswith('vehicle_images/'):
-                relative_path = relative_path[len('vehicle_images/'):]
-        elif normalized_path.startswith('skipped/'):
-            relative_path = normalized_path[len('skipped/'):]
-            # Remove the 'vehicle_images/' part if it exists
-            if relative_path.startswith('vehicle_images/'):
-                relative_path = relative_path[len('vehicle_images/'):]
-        else:
-            relative_path = normalized_path
-        # Prepare destination directory, preserving relative subfolders
-        dest_subdir = os.path.join(dest_dir, os.path.dirname(relative_path))
+            # For images already in other folders, this logic will still work.
+            relative_subdir_path = os.path.dirname(source_path)
+
+        dest_subdir = os.path.join(dest_dir, relative_subdir_path)
+
+        # Ensure the destination subdirectory exists
         os.makedirs(dest_subdir, exist_ok=True)
+
+        if new_label:
+            # Sanitize the new label and get the file extension
+            sanitized_label = re.sub(r'[^a-zA-Z0-9_-]', '', new_label).upper().replace(' ', '')
+            _, extension = os.path.splitext(source_path)
+            new_filename = f"{sanitized_label}{extension}"
+        else:
+            new_filename = os.path.basename(source_path)
+
         dst_full_path = os.path.join(dest_subdir, new_filename)
-        # Remove destination file if exists to prevent errors
-        if os.path.exists(dst_full_path):
-            os.remove(dst_full_path)
-        # Move the file
+
+        # Move the file from the source to the new destination
         shutil.move(src_full_path, dst_full_path)
         print(f"Moved {src_full_path} to {dst_full_path}")
-        # Return relative path for UI and API usage (forward slashes)
+
+        # Return the new path relative to the BASE_DIR
         rel_path = os.path.relpath(dst_full_path, BASE_DIR)
         return rel_path.replace('\\', '/')
     except Exception as e:
-        print(f"Error in move_image: {e}", file=sys.stderr)
+        print(f"Error in move_image: {e}")
         return None
 
 def get_image_counts():
@@ -191,6 +183,8 @@ def update_label():
     relative_img_path = request.json['img']
     label = request.json['label']
     new_path = move_image(relative_img_path, VALID_VEHICLE, label)
+    if new_path is None:
+        return jsonify({'success': False, 'error': 'Failed to move image'}), 500
     counts = get_image_counts()
     return jsonify({'success': True, 'new_path': new_path, 'counts': counts})
 
@@ -200,6 +194,8 @@ def valid_image():
     relative_img_path = request.json['img']
     label = request.json.get('label') or os.path.splitext(os.path.basename(relative_img_path))[0]
     new_path = move_image(relative_img_path, VALID_VEHICLE, label)
+    if new_path is None:
+        return jsonify({'success': False, 'error': 'Failed to move image'}), 500
     counts = get_image_counts()
     return jsonify({'success': True, 'new_path': new_path, 'counts': counts})
 
@@ -208,6 +204,8 @@ def invalid_image():
     """Handles the 'invalid' action."""
     relative_img_path = request.json['img']
     new_path = move_image(relative_img_path, INVALID_VEHICLE)
+    if new_path is None:
+        return jsonify({'success': False, 'error': 'Failed to move image'}), 500
     counts = get_image_counts()
     return jsonify({'success': True, 'new_path': new_path, 'counts': counts})
 
@@ -216,12 +214,14 @@ def skip_image():
     """Handles the 'skip' action."""
     relative_img_path = request.json['img']
     new_path = move_image(relative_img_path, SKIPPED_VEHICLE)
+    if new_path is None:
+        return jsonify({'success': False, 'error': 'Failed to move image'}), 500
     counts = get_image_counts()
     return jsonify({'success': True, 'new_path': new_path, 'counts': counts})
 
 @app.route('/images/serve/<path:filepath>')
 def serve_image(filepath):
-    # filepath can be like 'valid/vehicle_images_with_label/Goa/Ambre_Colony/12345.jpg'
+    """Serves an image from any directory relative to the BASE_DIR."""
     full_path = os.path.join(BASE_DIR, filepath)
     if not os.path.exists(full_path):
         print(f"File not found: {full_path}")
@@ -240,6 +240,7 @@ def serve_unlabeled(filename):
     return send_from_directory(UNLABELED, filename)
 
 if __name__ == '__main__':
+    setup_directories()
     for directory in [UNLABELED, VALID_VEHICLE, SKIPPED_VEHICLE, INVALID_VEHICLE]:
         if not os.path.exists(directory):
             os.makedirs(directory)
